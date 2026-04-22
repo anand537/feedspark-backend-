@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>New Feedback Available</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #28a745; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f8f9fa; }
+        .footer { background-color: #343a40; color: white; padding: 10px; text-align: center; font-size: 12px; }
+        .button { display: inline-block; background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>New Feedback Available for Review</h1>
+        </div>
+        <div class="content">
+            <h2>Hello {{ mentor_name }}!</h2>
+            <p>New feedback has been generated for your review.</p>
+
+            <div style="background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <h3>Assignment Details:</h3>
+                <p><strong>Assignment:</strong> {{ assignment_title }}</p>
+                <p><strong>Student:</strong> {{ student_name }}</p>
+            </div>
+
+            <p>Please log into your account to review and provide any additional feedback if needed.</p>
+
+            <p>Best regards,<br>The Auto Feedback Generator Team</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2024 Auto Feedback Generator. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

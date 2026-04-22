@@ -1,0 +1,15 @@
+{
+  "scripts": {
+    "start": "python run.py",
+    "test:api": "newman run tests/postman_collection.json",
+    "test:ci": "start-server-and-test start http://localhost:5000 test:api"
+  },
+  "dependencies": {
+    "react-toastify": "^11.0.5",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "newman": "^6.2.2",
+    "start-server-and-test": "^2.0.3"
+  }
+}

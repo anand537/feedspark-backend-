@@ -1,0 +1,489 @@
+{
+  "info": {
+    "_postman_id": "auth-system-collection-2024",
+    "name": "Auto Feedback Generator - Authentication API",
+    "description": "Complete authentication system testing collection for the Auto Feedback Generator backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. REGISTER USER",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "if (pm.response.code === 201) {",
+              "    var jsonData = pm.response.json();",
+              "    pm.environment.set('verification_token', jsonData.verification_token);",
+              "    var reqBody = JSON.parse(pm.request.body.raw);",
+              "    pm.environment.set('test_email', reqBody.email);",
+              "    pm.environment.set('test_password', reqBody.password);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\\n    \\\"name\\\": \\\"Test User\\\",\\n    \\\"email\\\": \\\"testuser@example.com\\\",\\n    \\\"password\\\": \\\"TestPass123!@#\\\",\\n    \\\"user_type\\\": \\\"student\\\"\\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/register",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "register"]
+        },
+        "description": "Register a new user with email, password, and user type"
+      },
+      "response": []
+    },
+    {
+      "name": "2. VERIFY EMAIL",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "    pm.environment.set('email_verified', 'true');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/auth/verify-email/{{verification_token}}",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "verify-email", "{{verification_token}}"]
+        },
+        "description": "Verify email using the token from registration"
+      },
+      "response": []
+    },
+    {
+      "name": "3. LOGIN",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    pm.environment.set('access_token', jsonData.access_token);",
+              "    pm.environment.set('user_id', jsonData.user.id);",
+              "    pm.environment.set('user_name', jsonData.user.name);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\\n    \\\"email\\\": \\\"testuser@example.com\\\",\\n    \\\"password\\\": \\\"TestPass123!@#\\\"\\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "login"]
+        },
+        "description": "Login with email and password to get JWT access token"
+      },
+      "response": []
+    },
+    {
+      "name": "4. GET CURRENT USER",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"User ID matches\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.id).to.eql(pm.environment.get(\"user_id\"));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/me",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "me"]
+        },
+        "description": "Get current logged-in user information using JWT token"
+      },
+      "response": []
+    },
+    {
+      "name": "5. CHANGE PASSWORD",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\\n    \\\"current_password\\\": \\\"TestPass123!@#\\\",\\n    \\\"new_password\\\": \\\"NewTestPass456!@#\\\"\\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/change-password",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "change-password"]
+        },
+        "description": "Change user password (requires current password)"
+      },
+      "response": []
+    },
+    {
+      "name": "6. REFRESH TOKEN",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    pm.environment.set('access_token', jsonData.access_token);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/refresh-token",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "refresh-token"]
+        },
+        "description": "Get a new access token using current token"
+      },
+      "response": []
+    },
+    {
+      "name": "7. LOGOUT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/logout",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "logout"]
+        },
+        "description": "Logout (client should discard token)"
+      },
+      "response": []
+    },
+    {
+      "name": "8. FORGOT PASSWORD",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    pm.environment.set('reset_token', jsonData.reset_token);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\\n    \\\"email\\\": \\\"testuser@example.com\\\"\\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/forgot-password",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "forgot-password"]
+        },
+        "description": "Request password reset token (valid for 1 hour)"
+      },
+      "response": []
+    },
+    {
+      "name": "9. RESET PASSWORD",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\\n    \\\"token\\\": \\\"{{reset_token}}\\\",\\n    \\\"new_password\\\": \\\"ResetPass789!@#\\\"\\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/reset-password",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "reset-password"]
+        },
+        "description": "Reset password using reset token from forgot-password"
+      },
+      "response": []
+    },
+    {
+      "name": "ERROR TEST - Invalid Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 422\", function () {",
+              "    pm.response.to.have.status(422);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer invalid_token_12345",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/me",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "me"]
+        },
+        "description": "Test endpoint with invalid token (should return 422)"
+      },
+      "response": []
+    },
+    {
+      "name": "ERROR TEST - Missing Required Field",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 400\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\\n    \\\"email\\\": \\\"test@example.com\\\"\\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "login"]
+        },
+        "description": "Test login without password (should return 400)"
+      },
+      "response": []
+    },
+    {
+      "name": "ERROR TEST - Invalid User Type",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 400\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\\n    \\\"name\\\": \\\"Test\\\",\\n    \\\"email\\\": \\\"test@example.com\\\",\\n    \\\"password\\\": \\\"Pass123!@#\\\",\\n    \\\"user_type\\\": \\\"invalid_type\\\"\\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/register",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "register"]
+        },
+        "description": "Test registration with invalid user_type (should return 400)"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "verification_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reset_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "test_email",
+      "value": "testuser@example.com",
+      "type": "string"
+    },
+    {
+      "key": "test_password",
+      "value": "TestPass123!@#",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_name",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "email_verified",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
