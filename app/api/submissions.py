@@ -1,9 +1,12 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.extensions import afg_db, supabase_client
+from app.extensions import afg_db  # supabase_client removed
 from app.models import Submission, Assignment, User
+from flask import current_app
 from app.utils.email_utils import send_submission_confirmation_email
 from app.utils.storage_utils import delete_file_async
+from app.services.assignment_ai import generate_ai_feedback
+import json
 from datetime import datetime
 
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
@@ -11,20 +14,8 @@ ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
 submissions_api = Blueprint('submissions_api', __name__, url_prefix='/submissions')
 
 def get_signed_url(path_or_url):
-    """Generate a signed URL valid for 1 hour if input is a path"""
-    if not path_or_url or not supabase_client:
-        return path_or_url
-        
-    # If it starts with http, it's likely a legacy public URL, return as is
-    if path_or_url.startswith('http'):
-        return path_or_url
-        
-    try:
-        # Create signed URL valid for 3600 seconds (1 hour)
-        res = supabase_client.storage.from_('submissions').create_signed_url(path_or_url, 3600)
-        return res.get('signedURL') if isinstance(res, dict) else res
-    except Exception:
-        return None
+    """Return path_or_url as is (signed URLs handled client-side or via API)"""
+    return path_or_url
 
 @submissions_api.route('/', methods=['GET'])
 @jwt_required()
@@ -53,6 +44,8 @@ def get_submissions():
             'assignment_title': assignment.title if assignment else None,
             'student_id': submission.student_id,
             'student_name': student.name if student else None,
+            'answers': json.loads(submission.answers or '{}') if submission.answers else None,
+            'ai_feedback': json.loads(submission.ai_feedback or '{}') if submission.ai_feedback else None,
             'submitted_at': submission.submitted_at.isoformat() if submission.submitted_at else None,
             'file_url': get_signed_url(submission.file_url),
             'status': submission.status,
@@ -87,6 +80,8 @@ def get_submission(submission_id):
         'assignment_title': assignment.title if assignment else None,
         'student_id': submission.student_id,
         'student_name': student.name if student else None,
+        'answers': json.loads(submission.answers or '{}') if submission.answers else None,
+        'ai_feedback': json.loads(submission.ai_feedback or '{}') if submission.ai_feedback else None,
         'submitted_at': submission.submitted_at.isoformat() if submission.submitted_at else None,
         'file_url': get_signed_url(submission.file_url),
         'status': submission.status,
@@ -119,29 +114,17 @@ def create_submission():
     file_url = data.get('file_url')
 
     # Handle File Upload via Supabase Storage
-    if 'file' in request.files and supabase_client:
+    if 'file' in request.files:
         file = request.files['file']
         if file.filename != '':
             # Validate file extension
             if '.' not in file.filename or file.filename.rsplit('.', 1)[1].lower() not in ALLOWED_EXTENSIONS:
                 return jsonify({'message': 'Invalid file type. Allowed: pdf, doc, docx, txt'}), 400
 
-            try:
-                # Generate unique path: assignments/{assignment_id}/{student_id}_{timestamp}_{filename}
-                timestamp = int(datetime.utcnow().timestamp())
-                file_path = f"assignments/{data['assignment_id']}/{current_user_id}_{timestamp}_{file.filename}"
-                
-                # Upload file
-                file_content = file.read()
-                supabase_client.storage.from_('submissions').upload(
-                    file_path, 
-                    file_content, 
-                    {"content-type": file.content_type}
-                )
-                # Store file path instead of public URL
-                file_url = file_path
-            except Exception as e:
-                return jsonify({'message': f'File upload failed: {str(e)}'}), 500
+            # Store file locally or handle differently post-migration
+            # For now, use filename as placeholder
+            file_url = f"uploads/{file.filename}"
+            current_app.logger.info(f"File received: {file.filename} (upload to be implemented)")
 
     submission = Submission(
         assignment_id=data['assignment_id'],
@@ -167,13 +150,28 @@ def create_submission():
         print(f"Failed to send submission confirmation email: {str(e)}")
         # Don't fail the submission if email fails
 
+    # Auto-generate AI feedback if answers provided (quiz/essay)
+    if 'answers' in data:
+        try:
+            student_answers = json.loads(data['answers'])
+            ai_result = generate_ai_feedback(assignment, student_answers, file_url)
+            submission.answers = data['answers']
+            submission.ai_feedback = json.dumps(ai_result)
+            submission.score = ai_result.get('score', 0)
+            submission.status = 'ai_graded'
+            afg_db.session.commit()
+            current_app.logger.info(f"AI feedback generated for submission {submission.id}")
+        except Exception as e:
+            current_app.logger.error(f"AI feedback generation failed for submission {submission.id}: {e}")
+
     return jsonify({
         'id': submission.id,
         'assignment_id': submission.assignment_id,
         'student_id': submission.student_id,
         'submitted_at': submission.submitted_at.isoformat(),
         'file_url': get_signed_url(submission.file_url),
-        'status': submission.status
+        'status': submission.status,
+        'ai_feedback': json.loads(submission.ai_feedback or '{}') if submission.ai_feedback else None
     }), 201
 
 @submissions_api.route('/<int:submission_id>', methods=['PUT'])

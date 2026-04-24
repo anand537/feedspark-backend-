@@ -1,6 +1,6 @@
 import threading
 from urllib.parse import unquote
-from app.extensions import supabase_client
+# from app.extensions import supabase_client  # Removed: using SQLAlchemy
 from datetime import datetime
 
 def _delete_worker(file_path):

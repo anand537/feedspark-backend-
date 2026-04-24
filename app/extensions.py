@@ -1,5 +1,5 @@
 import os
-from supabase import create_client, Client
+
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_mail import Mail
@@ -21,10 +21,7 @@ limiter = Limiter(
     storage_uri=os.environ.get("REDIS_URL") or "memory://"
 )
 
-# Initialize Supabase Client (already present)
-supabase_url = os.environ.get("SUPABASE_URL")
-supabase_key = os.environ.get("SUPABASE_KEY")
-supabase_client: Client = create_client(supabase_url, supabase_key) if supabase_url and supabase_key else None
+# Supabase client removed - using SQLAlchemy with Supabase PostgreSQL directly
 
 
 redis_client = FlaskRedis()

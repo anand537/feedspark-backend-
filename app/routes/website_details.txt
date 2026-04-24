@@ -1,0 +1,26 @@
+FeedSpark is an AI-powered learning management system designed for educational institutions. It provides automated feedback generation, course management, assignment tracking, meeting scheduling, and real-time communication features.
+
+Key Features:
+- Course Management: Create and manage courses with assignments and rubrics
+- Automated Feedback: AI-generated personalized feedback for student submissions
+- Meeting Management: Schedule and conduct online meetings with attendance tracking
+- Chat Groups: Real-time messaging for collaboration
+- Announcements: Broadcast important updates to students and instructors
+- Analytics: Track student performance and engagement metrics
+- File Storage: Secure upload and management of assignment files and rubrics
+
+User Roles:
+- Students: Enroll in courses, submit assignments, participate in meetings, receive feedback
+- Instructors/Mentors: Create courses, manage assignments, provide feedback, schedule meetings
+- Super Admins: Full system administration and user management
+
+Technical Stack:
+- Backend: Flask with Python
+- Database: Supabase PostgreSQL
+- Authentication: JWT with Redis blocklist
+- AI: OpenAI GPT for feedback generation
+- Real-time: Socket.IO for chat
+- Email: Gmail SMTP for notifications
+- Storage: Supabase for file uploads
+
+Support: For assistance, contact support@feedspark.com

@@ -18,6 +18,9 @@ class User(afg_db.Model):
     email_verification_token = afg_db.Column(afg_db.String(255), unique=True)
     email_verification_expires = afg_db.Column(afg_db.DateTime)
 
+    # Admin approval status
+    status = afg_db.Column(afg_db.String(20), default='pending')  # pending, approved, rejected
+
     # Password reset fields
     password_reset_token = afg_db.Column(afg_db.String(255), unique=True)
     password_reset_expires = afg_db.Column(afg_db.DateTime)

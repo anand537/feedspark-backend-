@@ -6,6 +6,7 @@ from datetime import timedelta
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev')
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY') or 'a-very-secret-key'
+    GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
     
     # Supabase PostgreSQL Configuration
     # SQLALCHEMY_DATABASE_URI is the variable Flask-SQLAlchemy uses

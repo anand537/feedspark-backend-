@@ -187,6 +187,10 @@ def create_app(config_class='config.Config'):
     cors.init_app(app)
     socketio.init_app(app, cors_allowed_origins="*")
     limiter.init_app(app)
+    
+    # Initialize AI clients
+    from app.services.assignment_ai import init_ai_clients
+    init_ai_clients(app)
 
     # Initialize Swagger
     init_swagger(app)
@@ -199,6 +203,7 @@ def create_app(config_class='config.Config'):
     from app.routes.ai_routes import ai_bp
     from app.routes.health import health_bp
     from app.routes.notification_routes import notification_bp
+    from app.routes.chatbot import chatbot_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(file_bp)
@@ -207,6 +212,7 @@ def create_app(config_class='config.Config'):
     app.register_blueprint(ai_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(notification_bp)
+    app.register_blueprint(chatbot_bp)
 
     # The db.create_all() call has been removed.
     # Database initialization should be handled by a migration tool (like Flask-Migrate)

@@ -21,6 +21,11 @@ class Assignment(afg_db.Model):
     due_date = afg_db.Column(afg_db.DateTime)
     created_at = afg_db.Column(afg_db.DateTime)
     status = afg_db.Column(afg_db.String(50), default='active')  # active, completed
+    type = afg_db.Column(afg_db.String(50), default='essay')  # quiz, essay, coding
+    rubric_id = afg_db.Column(afg_db.Integer, afg_db.ForeignKey('rubrics.id', ondelete='SET NULL'))
+    questions = afg_db.Column(afg_db.Text)  # JSON string for quiz/coding
+    max_score = afg_db.Column(afg_db.Integer, default=100)
+    rubric_json = afg_db.Column(afg_db.Text)  # JSON rubric from mentor
 
 
 class Submission(afg_db.Model):
@@ -34,3 +39,5 @@ class Submission(afg_db.Model):
     status = afg_db.Column(afg_db.String(50), default='submitted')  # submitted, graded
     score = afg_db.Column(afg_db.Float)
     feedback = afg_db.Column(afg_db.Text)
+    answers = afg_db.Column(afg_db.Text)  # JSON answers for quiz/essay/coding
+    ai_feedback = afg_db.Column(afg_db.Text)  # AI generated JSON feedback
