@@ -8,6 +8,7 @@ from app.models import User
 from app.utils.validation import validate_password
 import secrets
 import string
+import json
 
 users_api = Blueprint('users_api', __name__, url_prefix='/users')
 
@@ -23,29 +24,29 @@ def get_users():
 
     query = User.query
     
-    if current_user.user_type == 'super-admin':
-        user_type_filter = request.args.get('user_type')
-        if user_type_filter:
-            query = query.filter_by(user_type=user_type_filter)
-    elif current_user.user_type == 'mentor':
+    if current_user.role == 'admin':
+        role_filter = request.args.get('role')
+        if role_filter:
+            query = query.filter_by(role=role_filter)
+    elif current_user.role == 'mentor':
         # Mentors can see students (for chat/feedback)
-        query = query.filter_by(user_type='student')
-    elif current_user.user_type == 'student':
+        query = query.filter_by(role='student')
+    elif current_user.role == 'student':
         # Students can see mentors (for chat)
-        query = query.filter_by(user_type='mentor')
+        query = query.filter_by(role='mentor')
     else:
         return jsonify({'message': 'Access denied'}), 403
 
     users = query.all()
     return jsonify([{
-        'id': u.id,
+        'id': str(u.id),
         'name': u.name,
         'email': u.email,
-        'user_type': u.user_type,
+        'role': u.role,
         'created_at': u.created_at.isoformat() if u.created_at else None
     } for u in users])
 
-@users_api.route('/<int:user_id>', methods=['GET'])
+@users_api.route('/<uuid:user_id>', methods=['GET'])
 @jwt_required()
 def get_user(user_id):
     """Get a specific user"""
@@ -57,39 +58,39 @@ def get_user(user_id):
         return jsonify({'message': 'User not found'}), 404
 
     # Access Control
-    allowed = current_user.user_type == 'super-admin' or \
+    allowed = current_user.role == 'admin' or \
               current_user.id == user.id or \
-              (current_user.user_type == 'mentor' and user.user_type == 'student') or \
-              (current_user.user_type == 'student' and user.user_type == 'mentor')
+              (current_user.role == 'mentor' and user.role == 'student') or \
+              (current_user.role == 'student' and user.role == 'mentor')
     
     if not allowed:
         return jsonify({'message': 'Access denied'}), 403
 
     return jsonify({
-        'id': user.id,
+        'id': str(user.id),
         'name': user.name,
         'email': user.email,
-        'user_type': user.user_type,
+        'role': user.role,
         'created_at': user.created_at.isoformat() if user.created_at else None
     })
 
-@users_api.route('/role/<user_type>', methods=['GET'])
+@users_api.route('/role/<role>', methods=['GET'])
 @jwt_required()
-@role_required(['super-admin', 'mentor'])
-def get_users_by_role(user_type):
+@role_required(['admin', 'mentor'])
+def get_users_by_role(role):
     """Get users by role"""
-    users = User.query.filter_by(user_type=user_type).all()
+    users = User.query.filter_by(role=role).all()
     return jsonify([{
-        'id': u.id,
+        'id': str(u.id),
         'name': u.name,
         'email': u.email,
-        'user_type': u.user_type,
+        'role': u.role,
         'created_at': u.created_at.isoformat() if u.created_at else None
     } for u in users])
 
 @users_api.route('/', methods=['POST'])
 @jwt_required()
-@role_required(['super-admin'])
+@role_required(['admin'])
 def create_user():
     """Create a new user (super admin only)"""
     data = request.get_json()
@@ -98,14 +99,14 @@ def create_user():
 
     name = data.get('name')
     email = data.get('email')
-    user_type = data.get('user_type')
+    role = data.get('role')
     password = data.get('password', None)
 
-    if not name or not email or not user_type:
-        return jsonify({'message': 'Missing required fields: name, email, user_type'}), 400
+    if not name or not email or not role:
+        return jsonify({'message': 'Missing required fields: name, email, role'}), 400
 
-    if user_type not in ['student', 'mentor', 'super-admin']:
-        return jsonify({'message': 'Invalid user_type'}), 400
+    if role not in ['student', 'mentor', 'admin']:
+        return jsonify({'message': 'Invalid role'}), 400
 
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
@@ -127,7 +128,7 @@ def create_user():
     new_user = User(
         name=name,
         email=email,
-        user_type=user_type,
+        role=role,
         created_at=datetime.utcnow()
     )
     new_user.set_password(password)
@@ -142,16 +143,16 @@ def create_user():
         print(f"Failed to send welcome email: {str(e)}")
 
     return jsonify({
-        'id': new_user.id,
+        'id': str(new_user.id),
         'name': new_user.name,
         'email': new_user.email,
-        'user_type': new_user.user_type,
+        'role': new_user.role,
         'created_at': new_user.created_at.isoformat() if new_user.created_at else None
     }), 201
 
-@users_api.route('/<int:user_id>', methods=['PUT'])
+@users_api.route('/<uuid:user_id>', methods=['PUT'])
 @jwt_required()
-@role_required(['super-admin'])
+@role_required(['admin'])
 def update_user(user_id):
     """Update user (super admin only)"""
     user = afg_db.session.get(User, user_id)
@@ -173,11 +174,11 @@ def update_user(user_id):
             return jsonify({'message': 'Email already exists'}), 409
         user.email = data['email']
 
-    # Update user_type if provided
-    if 'user_type' in data:
-        if data['user_type'] not in ['student', 'mentor', 'super-admin']:
-            return jsonify({'message': 'Invalid user_type'}), 400
-        user.user_type = data['user_type']
+    # Update role if provided
+    if 'role' in data:
+        if data['role'] not in ['student', 'mentor', 'admin']:
+            return jsonify({'message': 'Invalid role'}), 400
+        user.role = data['role']
     
     # Optionally update password
     if 'password' in data and data['password']:
@@ -190,15 +191,15 @@ def update_user(user_id):
     afg_db.session.commit()
 
     return jsonify({
-        'id': user.id,
+        'id': str(user.id),
         'name': user.name,
         'email': user.email,
-        'user_type': user.user_type
+        'role': user.role
     })
 
-@users_api.route('/<int:user_id>', methods=['DELETE'])
+@users_api.route('/<uuid:user_id>', methods=['DELETE'])
 @jwt_required()
-@role_required(['super-admin'])
+@role_required(['admin'])
 def delete_user(user_id):
     """Delete user (super admin only)"""
     user = afg_db.session.get(User, user_id)
@@ -209,3 +210,38 @@ def delete_user(user_id):
     afg_db.session.commit()
 
     return jsonify({'message': 'User deleted successfully'})
+
+@users_api.route('/notification-preferences', methods=['PUT'])
+@jwt_required()
+def update_notification_preferences():
+    current_user_id = get_jwt_identity()
+    user = afg_db.session.get(User, current_user_id)
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    preferences = request.get_json(silent=True)
+    if preferences is None:
+        return jsonify({'message': 'Invalid JSON payload'}), 400
+
+    try:
+        user.notification_preferences = json.dumps(preferences)
+    except Exception:
+        return jsonify({'message': 'Failed to serialize preferences'}), 400
+
+    afg_db.session.commit()
+    return jsonify({'message': 'Notification preferences updated successfully'})
+
+@users_api.route('/notification-preferences', methods=['GET'])
+@jwt_required()
+def get_notification_preferences():
+    current_user_id = get_jwt_identity()
+    user = afg_db.session.get(User, current_user_id)
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    try:
+        preferences = json.loads(user.notification_preferences or '{}')
+    except Exception:
+        preferences = {}
+
+    return jsonify({'notification_preferences': preferences})

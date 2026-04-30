@@ -15,9 +15,9 @@ def send_announcement_notifications(announcement):
     if announcement.target_type == 'all':
         recipients = User.query.all()
     elif announcement.target_type == 'role':
-        recipients = User.query.filter_by(user_type=announcement.target_value).all()
+        recipients = User.query.filter_by(role=announcement.target_value).all()
     elif announcement.target_type == 'course' and announcement.target_value:
-        course = afg_db.session.get(Course, int(announcement.target_value))
+        course = afg_db.session.get(Course, announcement.target_value)
         if course:
             # Assuming Course has a 'students' relationship
             recipients = course.students
@@ -39,7 +39,7 @@ def create_announcement():
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
 
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
 
     data = request.get_json()
@@ -76,7 +76,7 @@ def create_announcement():
     afg_db.session.commit()
 
     return jsonify({
-        'id': announcement.id,
+        'id': str(announcement.id),
         'message': 'Announcement created' + (' and sent' if announcement.notification_sent else ' and scheduled')
     }), 201
 
@@ -90,26 +90,26 @@ def get_announcements():
     query = Announcement.query
 
     # admins see everything
-    if current_user.user_type == 'super-admin':
+    if current_user.role == 'admin':
         announcements = query.order_by(Announcement.scheduled_for.desc()).all()
     else:
         # Filter based on relevance
         filters = [
             Announcement.target_type == 'all',
-            and_(Announcement.target_type == 'role', Announcement.target_value == current_user.user_type)
+            and_(Announcement.target_type == 'role', Announcement.target_value == current_user.role)
         ]
 
         # Add course-specific announcements
-        if current_user.user_type == 'student':
+        if current_user.role == 'student':
             # Get IDs of courses the student is enrolled in
             enrolled_courses = Course.query.filter(Course.students.any(id=current_user.id)).all()
             course_ids = [str(c.id) for c in enrolled_courses]
             if course_ids:
                 filters.append(and_(Announcement.target_type == 'course', Announcement.target_value.in_(course_ids)))
         
-        elif current_user.user_type == 'mentor':
+        elif current_user.role == 'mentor':
             # Get IDs of courses the mentor teaches
-            taught_courses = Course.query.filter_by(instructor_id=current_user.id).all()
+            taught_courses = Course.query.filter_by(mentor_id=current_user.id).all()
             course_ids = [str(c.id) for c in taught_courses]
             if course_ids:
                 filters.append(and_(Announcement.target_type == 'course', Announcement.target_value.in_(course_ids)))
@@ -124,13 +124,13 @@ def get_announcements():
     for a in announcements:
         creator = afg_db.session.get(User, a.created_by) if a.created_by else None
         result.append({
-            'id': a.id,
+            'id': str(a.id),
             'title': a.title,
             'content': a.content,
             'target_type': a.target_type,
             'target_value': a.target_value,
             'created_by': {
-                'id': creator.id,
+                'id': str(creator.id),
                 'name': creator.name
             } if creator else None,
             'created_at': a.created_at.isoformat(),
@@ -140,14 +140,14 @@ def get_announcements():
 
     return jsonify(result)
 
-@announcements_api.route('/<int:announcement_id>', methods=['PUT'])
+@announcements_api.route('/<uuid:announcement_id>', methods=['PUT'])
 @jwt_required()
 def update_announcement(announcement_id):
     """Update an announcement (Mentors & Admins only)"""
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
 
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
 
     announcement = afg_db.session.get(Announcement, announcement_id)
@@ -155,7 +155,7 @@ def update_announcement(announcement_id):
         return jsonify({'message': 'Announcement not found'}), 404
 
     # Check ownership (unless admin)
-    if current_user.user_type != 'super-admin' and announcement.created_by != current_user_id:
+    if current_user.role != 'admin' and announcement.created_by != current_user_id:
         return jsonify({'message': 'Access denied'}), 403
 
     data = request.get_json()
@@ -188,19 +188,19 @@ def update_announcement(announcement_id):
     afg_db.session.commit()
 
     return jsonify({
-        'id': announcement.id,
+        'id': str(announcement.id),
         'message': 'Announcement updated successfully',
         'notification_sent': announcement.notification_sent
     })
 
-@announcements_api.route('/<int:announcement_id>', methods=['DELETE'])
+@announcements_api.route('/<uuid:announcement_id>', methods=['DELETE'])
 @jwt_required()
 def delete_announcement(announcement_id):
     """Delete an announcement"""
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
 
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
 
     announcement = afg_db.session.get(Announcement, announcement_id)
@@ -208,7 +208,7 @@ def delete_announcement(announcement_id):
         return jsonify({'message': 'Announcement not found'}), 404
 
     # Check ownership (unless admin)
-    if current_user.user_type != 'super-admin' and announcement.created_by != current_user_id:
+    if current_user.role != 'admin' and announcement.created_by != current_user_id:
         return jsonify({'message': 'Access denied'}), 403
 
     afg_db.session.delete(announcement)

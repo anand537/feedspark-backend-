@@ -1,17 +1,22 @@
 from app.extensions import afg_db
 from werkzeug.security import generate_password_hash, check_password_hash
+from .course import enrollments
 import secrets
 from datetime import datetime, timedelta
+import uuid
 
 class User(afg_db.Model):
+    enrolled_courses = afg_db.relationship('Course', secondary=enrollments, back_populates='students')
     __tablename__ = 'users'
 
-    id = afg_db.Column(afg_db.Integer, primary_key=True)
+    id = afg_db.Column(afg_db.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = afg_db.Column(afg_db.String(255))
     email = afg_db.Column(afg_db.String(255), unique=True, nullable=False)
-    password = afg_db.Column(afg_db.String(255), nullable=False)
-    user_type = afg_db.Column(afg_db.String(50), nullable=False)
+    password_hash = afg_db.Column(afg_db.String(255), nullable=False)
+    role = afg_db.Column(afg_db.String(50), nullable=False, default='student')  # 'admin', 'mentor', 'student'
+    avatar_url = afg_db.Column(afg_db.Text)
     created_at = afg_db.Column(afg_db.DateTime, default=datetime.utcnow)
+    notification_preferences = afg_db.Column(afg_db.Text, default='{}')
 
     # Email verification fields
     email_verified = afg_db.Column(afg_db.Boolean, default=False)
@@ -26,10 +31,10 @@ class User(afg_db.Model):
     password_reset_expires = afg_db.Column(afg_db.DateTime)
 
     def set_password(self, raw_password):
-        self.password = generate_password_hash(raw_password)
+        self.password_hash = generate_password_hash(raw_password)
 
     def check_password(self, raw_password):
-        return check_password_hash(self.password, raw_password)
+        return check_password_hash(self.password_hash, raw_password)
 
     def generate_email_verification_token(self):
         """Generate a secure token for email verification"""

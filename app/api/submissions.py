@@ -39,10 +39,10 @@ def get_submissions():
         assignment = Assignment.query.get(submission.assignment_id)
         student = User.query.get(submission.student_id)
         result.append({
-            'id': submission.id,
-            'assignment_id': submission.assignment_id,
+            'id': str(submission.id),
+            'assignment_id': str(submission.assignment_id),
             'assignment_title': assignment.title if assignment else None,
-            'student_id': submission.student_id,
+            'student_id': str(submission.student_id),
             'student_name': student.name if student else None,
             'answers': json.loads(submission.answers or '{}') if submission.answers else None,
             'ai_feedback': json.loads(submission.ai_feedback or '{}') if submission.ai_feedback else None,
@@ -63,7 +63,7 @@ def get_submissions():
         }
     })
 
-@submissions_api.route('/<int:submission_id>', methods=['GET'])
+@submissions_api.route('/<uuid:submission_id>', methods=['GET'])
 @jwt_required()
 def get_submission(submission_id):
     """Get a specific submission"""
@@ -75,10 +75,10 @@ def get_submission(submission_id):
     student = User.query.get(submission.student_id)
 
     return jsonify({
-        'id': submission.id,
-        'assignment_id': submission.assignment_id,
+        'id': str(submission.id),
+        'assignment_id': str(submission.assignment_id),
         'assignment_title': assignment.title if assignment else None,
-        'student_id': submission.student_id,
+        'student_id': str(submission.student_id),
         'student_name': student.name if student else None,
         'answers': json.loads(submission.answers or '{}') if submission.answers else None,
         'ai_feedback': json.loads(submission.ai_feedback or '{}') if submission.ai_feedback else None,
@@ -165,16 +165,21 @@ def create_submission():
             current_app.logger.error(f"AI feedback generation failed for submission {submission.id}: {e}")
 
     return jsonify({
-        'id': submission.id,
-        'assignment_id': submission.assignment_id,
-        'student_id': submission.student_id,
+        'id': str(submission.id),
+        'assignment_id': str(submission.assignment_id),
+        'student_id': str(submission.student_id),
         'submitted_at': submission.submitted_at.isoformat(),
         'file_url': get_signed_url(submission.file_url),
         'status': submission.status,
         'ai_feedback': json.loads(submission.ai_feedback or '{}') if submission.ai_feedback else None
     }), 201
 
-@submissions_api.route('/<int:submission_id>', methods=['PUT'])
+@submissions_api.route('/upload', methods=['POST'])
+@jwt_required()
+def upload_submission():
+    return create_submission()
+
+@submissions_api.route('/<uuid:submission_id>', methods=['PUT'])
 @jwt_required()
 def update_submission(submission_id):
     """Update a submission (grading for mentors, resubmission for students)"""
@@ -191,7 +196,7 @@ def update_submission(submission_id):
         return jsonify({'message': 'No data provided'}), 400
 
     # Logic for Student
-    if current_user.user_type == 'student':
+    if current_user.role == 'student':
         if submission.student_id != current_user_id:
             return jsonify({'message': 'Access denied'}), 403
         
@@ -226,7 +231,7 @@ def update_submission(submission_id):
             submission.submitted_at = datetime.utcnow()
             
     # Logic for Mentor/Admin
-    elif current_user.user_type in ['mentor', 'super-admin']:
+    elif current_user.role in ['mentor', 'admin']:
         if 'score' in data:
             submission.score = data['score']
         if 'feedback' in data:
@@ -239,9 +244,9 @@ def update_submission(submission_id):
     afg_db.session.commit()
 
     return jsonify({
-        'id': submission.id,
-        'assignment_id': submission.assignment_id,
-        'student_id': submission.student_id,
+        'id': str(submission.id),
+        'assignment_id': str(submission.assignment_id),
+        'student_id': str(submission.student_id),
         'submitted_at': submission.submitted_at.isoformat() if submission.submitted_at else None,
         'file_url': get_signed_url(submission.file_url),
         'status': submission.status,
@@ -249,7 +254,7 @@ def update_submission(submission_id):
         'feedback': submission.feedback
     })
 
-@submissions_api.route('/<int:submission_id>', methods=['DELETE'])
+@submissions_api.route('/<uuid:submission_id>', methods=['DELETE'])
 @jwt_required()
 def delete_submission(submission_id):
     """Delete a submission"""
@@ -260,10 +265,10 @@ def delete_submission(submission_id):
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
 
-    if current_user.user_type == 'student':
+    if current_user.role == 'student':
         if submission.student_id != current_user_id:
             return jsonify({'message': 'Access denied'}), 403
-    elif current_user.user_type not in ['mentor', 'super-admin']:
+    elif current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
 
     # Capture file URL before deleting the record

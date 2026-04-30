@@ -37,7 +37,7 @@ def create_feedback():
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
 
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Only mentors and admins can generate feedback'}), 403
 
     if 'student_id' not in data:
@@ -124,14 +124,14 @@ def create_feedback():
         }
     }), 201
 
-@feedback_api.route('/<int:feedback_id>', methods=['PUT'])
+@feedback_api.route('/<uuid:feedback_id>', methods=['PUT'])
 @jwt_required()
 def update_feedback(feedback_id):
     """Update feedback text (Mentor/Admin only)"""
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
 
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
 
     feedback = afg_db.session.get(Feedback, feedback_id)
@@ -140,7 +140,7 @@ def update_feedback(feedback_id):
 
     # Verify ownership via MentorInput
     mentor_input = afg_db.session.get(MentorInput, feedback.mentor_input_id)
-    if current_user.user_type != 'super-admin' and mentor_input.evaluator_id != current_user_id:
+    if current_user.role != 'admin' and mentor_input.evaluator_id != current_user_id:
         return jsonify({'message': 'Access denied'}), 403
 
     data = request.get_json()
@@ -154,14 +154,14 @@ def update_feedback(feedback_id):
     
     return jsonify({'message': 'No data provided'}), 400
 
-@feedback_api.route('/<int:feedback_id>', methods=['DELETE'])
+@feedback_api.route('/<uuid:feedback_id>', methods=['DELETE'])
 @jwt_required()
 def delete_feedback(feedback_id):
     """Delete feedback and associated evaluation data"""
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
 
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
 
     feedback = afg_db.session.get(Feedback, feedback_id)
@@ -175,14 +175,14 @@ def delete_feedback(feedback_id):
 
     return jsonify({'message': 'Feedback and evaluation deleted successfully'})
 
-@feedback_api.route('/<int:feedback_id>/regenerate', methods=['POST'])
+@feedback_api.route('/<uuid:feedback_id>/regenerate', methods=['POST'])
 @jwt_required()
 def regenerate_feedback(feedback_id):
     """Regenerate feedback with optional new instructions"""
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
 
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
 
     feedback = afg_db.session.get(Feedback, feedback_id)
@@ -192,7 +192,7 @@ def regenerate_feedback(feedback_id):
     mentor_input = afg_db.session.get(MentorInput, feedback.mentor_input_id)
     
     # Check ownership
-    if current_user.user_type != 'super-admin' and mentor_input.evaluator_id != current_user_id:
+    if current_user.role != 'admin' and mentor_input.evaluator_id != current_user_id:
         return jsonify({'message': 'Access denied'}), 403
 
     data = request.get_json()
@@ -239,7 +239,7 @@ def regenerate_feedback(feedback_id):
         }
     })
 
-@feedback_api.route('/<int:feedback_id>/versions', methods=['GET'])
+@feedback_api.route('/<uuid:feedback_id>/versions', methods=['GET'])
 @jwt_required()
 def get_feedback_versions(feedback_id):
     """Get version history for a feedback"""
@@ -252,30 +252,30 @@ def get_feedback_versions(feedback_id):
         
     # Check access
     mentor_input = afg_db.session.get(MentorInput, feedback.mentor_input_id)
-    if current_user.user_type == 'student' and mentor_input.student_id != current_user_id:
+    if current_user.role == 'student' and mentor_input.student_id != current_user_id:
         return jsonify({'message': 'Access denied'}), 403
-    if current_user.user_type == 'mentor' and mentor_input.evaluator_id != current_user_id:
+    if current_user.role == 'mentor' and mentor_input.evaluator_id != current_user_id:
         # Mentors can see versions of feedback they created
         pass
         
     versions = FeedbackVersion.query.filter_by(feedback_id=feedback_id).order_by(FeedbackVersion.version_number.desc()).all()
     
     return jsonify([{
-        'id': v.id,
+        'id': str(v.id),
         'version_number': v.version_number,
         'feedback_text': v.feedback_text,
         'created_at': v.created_at.isoformat(),
-        'created_by': v.created_by
+        'created_by': str(v.created_by)
     } for v in versions])
 
-@feedback_api.route('/<int:feedback_id>/revert/<int:version_id>', methods=['POST'])
+@feedback_api.route('/<uuid:feedback_id>/revert/<uuid:version_id>', methods=['POST'])
 @jwt_required()
 def revert_feedback_version(feedback_id, version_id):
     """Revert feedback to a specific version"""
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
     
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
         
     feedback = afg_db.session.get(Feedback, feedback_id)
@@ -303,7 +303,7 @@ def feedback_history():
         if mentor_input:
             rubric = afg_db.session.get(Rubric, mentor_input.rubric_id)
         result.append({
-            'id': fb.id,
+            'id': str(fb.id),
             'feedback_text': fb.feedback_text,
             'generated_at': fb.generated_at.isoformat() if fb.generated_at else None,
             'rubric_title': rubric.title if rubric else None
@@ -336,7 +336,7 @@ def generate_assignment_feedback_endpoint():
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
 
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Only mentors and admins can generate feedback'}), 403
 
     # Get template

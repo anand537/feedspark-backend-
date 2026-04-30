@@ -18,9 +18,9 @@ def get_messages():
         sender = User.query.get(m.sender_id)
         receiver = User.query.get(m.receiver_id)
         return {
-            'id': m.id,
-            'sender': {'id': sender.id, 'name': sender.name, 'email': sender.email} if sender else None,
-            'receiver': {'id': receiver.id, 'name': receiver.name, 'email': receiver.email} if receiver else None,
+            'id': str(m.id),
+            'sender': {'id': str(sender.id), 'name': sender.name, 'email': sender.email} if sender else None,
+            'receiver': {'id': str(receiver.id), 'name': receiver.name, 'email': receiver.email} if receiver else None,
             'content': m.content,
             'sent_at': m.sent_at.isoformat() if m.sent_at else None,
             'read_at': m.read_at.isoformat() if m.read_at else None
@@ -31,7 +31,7 @@ def get_messages():
         'sent': [serialize_message(m) for m in sent]
     })
 
-@messages_api.route('/<int:message_id>', methods=['GET'])
+@messages_api.route('/<uuid:message_id>', methods=['GET'])
 @jwt_required()
 def get_message(message_id):
     """Get a specific message"""
@@ -39,7 +39,7 @@ def get_message(message_id):
     if not message:
         return jsonify({'message': 'Message not found'}), 404
 
-    current_user_id = int(get_jwt_identity())
+    current_user_id = get_jwt_identity()
     if message.sender_id != current_user_id and message.receiver_id != current_user_id:
         return jsonify({'message': 'Access denied'}), 403
 
@@ -47,9 +47,9 @@ def get_message(message_id):
     receiver = User.query.get(message.receiver_id)
 
     return jsonify({
-        'id': message.id,
-        'sender': {'id': sender.id, 'name': sender.name, 'email': sender.email} if sender else None,
-        'receiver': {'id': receiver.id, 'name': receiver.name, 'email': receiver.email} if receiver else None,
+        'id': str(message.id),
+        'sender': {'id': str(sender.id), 'name': sender.name, 'email': sender.email} if sender else None,
+        'receiver': {'id': str(receiver.id), 'name': receiver.name, 'email': receiver.email} if receiver else None,
         'content': message.content,
         'sent_at': message.sent_at.isoformat() if message.sent_at else None,
         'read_at': message.read_at.isoformat() if message.read_at else None
@@ -68,17 +68,17 @@ def send_message():
     if not receiver:
         return jsonify({'message': 'Receiver not found'}), 404
 
-    current_user_id = int(get_jwt_identity())
+    current_user_id = get_jwt_identity()
     sender = User.query.get(current_user_id)
 
     if not sender:
         return jsonify({'message': 'Sender not found'}), 404
 
     # Enforce messaging restrictions
-    if sender.user_type == 'student' and receiver.user_type != 'mentor':
+    if sender.role == 'student' and receiver.role != 'mentor':
         return jsonify({'message': 'Students can only message mentors'}), 403
     
-    if sender.user_type == 'mentor' and receiver.user_type != 'student':
+    if sender.role == 'mentor' and receiver.role != 'student':
         return jsonify({'message': 'Mentors can only message students'}), 403
 
     message = Message(
@@ -94,22 +94,22 @@ def send_message():
     # Emit real-time message via Socket.IO
     from app.extensions import socketio
     socketio.emit('new_message', {
-        'id': message.id,
-        'sender_id': message.sender_id,
-        'receiver_id': message.receiver_id,
+        'id': str(message.id),
+        'sender_id': str(message.sender_id),
+        'receiver_id': str(message.receiver_id),
         'content': message.content,
         'sent_at': message.sent_at.isoformat()
     }, room=str(data['receiver_id']))
 
     return jsonify({
-        'id': message.id,
-        'sender_id': message.sender_id,
-        'receiver_id': message.receiver_id,
+        'id': str(message.id),
+        'sender_id': str(message.sender_id),
+        'receiver_id': str(message.receiver_id),
         'content': message.content,
         'sent_at': message.sent_at.isoformat()
     }), 201
 
-@messages_api.route('/<int:message_id>/read', methods=['PUT'])
+@messages_api.route('/<uuid:message_id>/read', methods=['PUT'])
 @jwt_required()
 def mark_as_read(message_id):
     """Mark a message as read"""
@@ -133,7 +133,7 @@ def mark_as_read(message_id):
 
     return jsonify({'message': 'Message marked as read'})
 
-@messages_api.route('/<int:message_id>', methods=['DELETE'])
+@messages_api.route('/<uuid:message_id>', methods=['DELETE'])
 @jwt_required()
 def delete_message(message_id):
     """Delete a message"""

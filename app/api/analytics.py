@@ -20,30 +20,40 @@ def dashboard_analytics():
 
     base_data = {
         "user_info": {
-            "id": user.id,
+            "id": str(user.id),
             "name": user.name,
             "email": user.email,
-            "user_type": user.user_type
+            "role": user.role
         }
     }
 
-    if user.user_type == 'super-admin':
+    if user.role == 'admin':
         return jsonify({**base_data, **_get_admin_analytics()})
-    elif user.user_type == 'mentor':
+    elif user.role == 'mentor':
         return jsonify({**base_data, **_get_mentor_analytics(current_user_id)})
-    elif user.user_type == 'student':
+    elif user.role == 'student':
         return jsonify({**base_data, **_get_student_analytics(current_user_id)})
     else:
-        return jsonify({"error": "Invalid user type"}), 400
+        return jsonify({"error": "Invalid user role"}), 400
+
+@analytics_api.route('/admin', methods=['GET'])
+@jwt_required()
+def admin_analytics():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    if not user or user.role != 'admin':
+        return jsonify({'message': 'Access denied'}), 403
+
+    return jsonify(_get_admin_analytics())
 
 def _get_admin_analytics():
     """Get analytics for admin dashboard"""
     # User statistics
     total_users = User.query.count()
     users_by_type = afg_db.session.query(
-        User.user_type,
+        User.role,
         func.count(User.id)
-    ).group_by(User.user_type).all()
+    ).group_by(User.role).all()
 
     # Course and assignment statistics
     total_courses = Course.query.count()
@@ -86,8 +96,8 @@ def _get_admin_analytics():
      .limit(5).all()
 
     # Engagement metrics
-    total_students = User.query.filter_by(user_type='student').count()
-    total_mentors = User.query.filter_by(user_type='mentor').count()
+    total_students = User.query.filter_by(role='student').count()
+    total_mentors = User.query.filter_by(role='mentor').count()
 
     # Calculate completion rates
     completed_submissions = Submission.query.filter(
@@ -111,7 +121,7 @@ def _get_admin_analytics():
         "user_distribution": {
             "students": next((count for type_, count in users_by_type if type_ == 'student'), 0),
             "mentors": next((count for type_, count in users_by_type if type_ == 'mentor'), 0),
-            "admins": next((count for type_, count in users_by_type if type_ == 'super-admin'), 0)
+            "admins": next((count for type_, count in users_by_type if type_ == 'admin'), 0)
         },
         "recent_activity": {
             "new_users_30d": recent_users,
@@ -130,7 +140,7 @@ def _get_admin_analytics():
 def _get_mentor_analytics(mentor_id):
     """Get analytics for mentor dashboard"""
     # Courses taught by mentor
-    courses_taught = Course.query.filter_by(instructor_id=mentor_id).all()
+    courses_taught = Course.query.filter_by(mentor_id=mentor_id).all()
     course_ids = [course.id for course in courses_taught]
 
     # Students in mentor's courses
@@ -277,17 +287,17 @@ def user_activity_analytics():
 
     # User engagement by type
     user_engagement = afg_db.session.query(
-        User.user_type,
+        User.role,
         func.count(func.distinct(User.id)).label('active_users'),
         func.avg(func.extract('epoch', func.now() - User.created_at) / 86400).label('avg_account_age_days')
-    ).filter(User.created_at >= start_date).group_by(User.user_type).all()
+    ).filter(User.created_at >= start_date).group_by(User.role).all()
 
     return jsonify({
         "period_days": days,
         "daily_activity": daily_activity,
         "user_engagement": [
             {
-                "user_type": type_,
+                "role": type_,
                 "active_users": active,
                 "avg_account_age_days": round(age, 1) if age else 0
             } for type_, active, age in user_engagement

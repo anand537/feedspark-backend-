@@ -13,7 +13,7 @@ def create_group():
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
 
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Only mentors can create groups'}), 403
 
     data = request.get_json()
@@ -47,7 +47,7 @@ def create_group():
     afg_db.session.commit()
 
     return jsonify({
-        'id': group.id,
+        'id': str(group.id),
         'name': group.name,
         'members_count': count + 1,
         'message': 'Group created successfully'
@@ -68,15 +68,15 @@ def get_my_groups():
     result = []
     for g in groups:
         result.append({
-            'id': g.id,
+            'id': str(g.id),
             'name': g.name,
-            'course_id': g.course_id,
+            'course_id': str(g.course_id),
             'created_at': g.created_at.isoformat()
         })
     
     return jsonify(result)
 
-@chat_groups_api.route('/<int:group_id>/messages', methods=['GET'])
+@chat_groups_api.route('/<uuid:group_id>/messages', methods=['GET'])
 @jwt_required()
 def get_group_messages(group_id):
     """Get messages for a group"""
@@ -93,10 +93,10 @@ def get_group_messages(group_id):
     for m in messages:
         sender = afg_db.session.get(User, m.sender_id)
         result.append({
-            'id': m.id,
+            'id': str(m.id),
             'content': m.content,
             'sender': {
-                'id': sender.id,
+                'id': str(sender.id),
                 'name': sender.name
             } if sender else None,
             'sent_at': m.sent_at.isoformat()
@@ -104,7 +104,7 @@ def get_group_messages(group_id):
         
     return jsonify(result)
 
-@chat_groups_api.route('/<int:group_id>/messages', methods=['POST'])
+@chat_groups_api.route('/<uuid:group_id>/messages', methods=['POST'])
 @jwt_required()
 def send_group_message(group_id):
     """Send a message to a group"""
@@ -131,14 +131,14 @@ def send_group_message(group_id):
     # Emit Socket Event
     sender = afg_db.session.get(User, current_user_id)
     socketio.emit('new_group_message', {
-        'id': message.id,
-        'group_id': group_id,
+        'id': str(message.id),
+        'group_id': str(group_id),
         'content': message.content,
         'sender': {
-            'id': sender.id,
+            'id': str(sender.id),
             'name': sender.name
         },
         'sent_at': message.sent_at.isoformat()
     }, room=f"group_{group_id}")
     
-    return jsonify({'message': 'Message sent', 'id': message.id}), 201
+    return jsonify({'message': 'Message sent', 'id': str(message.id)}), 201

@@ -15,11 +15,11 @@ def get_feedback_templates():
     result = []
     for template, creator in results:
         result.append({
-            'id': template.id,
+            'id': str(template.id),
             'name': template.name,
             'template_text': template.template_text,
             'created_by': {
-                'id': creator.id,
+                'id': str(creator.id),
                 'name': creator.name,
                 'email': creator.email
             } if creator else None,
@@ -27,7 +27,7 @@ def get_feedback_templates():
         })
     return jsonify(result)
 
-@feedback_templates_api.route('/<int:template_id>', methods=['GET'])
+@feedback_templates_api.route('/<uuid:template_id>', methods=['GET'])
 @jwt_required()
 def get_feedback_template(template_id):
     """Get a specific feedback template"""
@@ -37,11 +37,11 @@ def get_feedback_template(template_id):
 
     creator = afg_db.session.get(User, template.created_by) if template.created_by else None
     return jsonify({
-        'id': template.id,
+        'id': str(template.id),
         'name': template.name,
         'template_text': template.template_text,
         'created_by': {
-            'id': creator.id,
+            'id': str(creator.id),
             'name': creator.name,
             'email': creator.email
         } if creator else None,
@@ -59,7 +59,7 @@ def create_feedback_template():
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
 
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Only mentors and admins can create templates'}), 403
 
     template = FeedbackTemplate(
@@ -73,14 +73,14 @@ def create_feedback_template():
     afg_db.session.commit()
 
     return jsonify({
-        'id': template.id,
+        'id': str(template.id),
         'name': template.name,
         'template_text': template.template_text,
-        'created_by': template.created_by,
+        'created_by': str(template.created_by),
         'created_at': template.created_at.isoformat()
     }), 201
 
-@feedback_templates_api.route('/<int:template_id>', methods=['PUT'])
+@feedback_templates_api.route('/<uuid:template_id>', methods=['PUT'])
 @jwt_required()
 def update_feedback_template(template_id):
     """Update a feedback template"""
@@ -90,7 +90,7 @@ def update_feedback_template(template_id):
 
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
 
     data = request.get_json()
@@ -105,14 +105,14 @@ def update_feedback_template(template_id):
     afg_db.session.commit()
 
     return jsonify({
-        'id': template.id,
+        'id': str(template.id),
         'name': template.name,
         'template_text': template.template_text,
-        'created_by': template.created_by,
+        'created_by': str(template.created_by),
         'created_at': template.created_at.isoformat() if template.created_at else None
     })
 
-@feedback_templates_api.route('/<int:template_id>', methods=['DELETE'])
+@feedback_templates_api.route('/<uuid:template_id>', methods=['DELETE'])
 @jwt_required()
 def delete_feedback_template(template_id):
     """Delete a feedback template"""
@@ -122,7 +122,7 @@ def delete_feedback_template(template_id):
 
     current_user_id = get_jwt_identity()
     current_user = afg_db.session.get(User, current_user_id)
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
 
     afg_db.session.delete(template)

@@ -1,38 +1,33 @@
-# Authentication Audit TODO
+# TODO: Delete and Recreate Supabase Tables with Data
 
-## Plan (Pending User Confirmation)
+## Task: Delete all tables on Supabase and create new tables using Supabase schema, then push/store all the data from data.sql to Supabase
 
-### File 1: `app/models/user.py`
-- Add `status` column: `afg_db.Column(afg_db.String(20), default='pending')`
+## Information Gathered:
+- `apply_supabase_sql.py` is a Python script that:
+  - Reads DATABASE_URL from environment variables
+  - Reads schema from `app/models/SUPABASE_SCHEMA.sql` (22 UUID-based tables)
+  - Reads data from `data/data.sql` (large INSERT statements)
+  - Drops existing tables using CASCADE
+  - Creates new tables from the schema
+  - Loads all data from data.sql
+  
+- The schema includes tables: users, courses, enrollments, assignments, submissions, rubrics, criteria, meetings, meeting_participants, messages, conversations, chat_groups, chat_group_members, group_messages, notifications, feedback_templates, announcements, mentor_inputs, performance_data, feedbacks, feedback_versions, token_blocklist
 
-### File 2: `app/decorators.py`
-- Fix `role_required` to look up `User` from JWT identity and check `user_type`
+## Plan:
+1. Execute `apply_supabase_sql.py` script
+2. Script will automatically:
+   - Drop all existing tables (CASCADE)
+   - Create new tables from SUPABASE_SCHEMA.sql
+   - Load all data from data.sql
 
-### File 3: `app/routes/auth.py`
-1. Fix `register_user`:
-   - Accept `name` and `user_type`
-   - Use `set_password()` instead of broken `password_hash=...`
-   - Set `email_verified=False`, `status='pending'`
-   - Generate email verification token via model method
-   - Return `verification_token` + `user_id`
-2. Add `/check-email` endpoint
-3. Add `/verify-email/<token>` endpoint
-4. Fix `login_user`:
-   - Change `user.is_verified` → `user.email_verified`
-   - Add `status == 'approved'` validation
-   - Include `user_type` in JWT additional_claims
-5. Fix `get_current_user`: return `email_verified` instead of `is_verified`
-6. Keep existing OTP routes for backward compatibility
+## Dependent Files:
+- `app/models/SUPABASE_SCHEMA.sql` - schema definition
+- `data/data.sql` - data to insert
 
-### File 4: `app/api/users.py`
-- Add `/api/users/pending` (GET, super-admin)
-- Add `/api/users/<id>/approve` (POST, super-admin)
-- Add `/api/users/<id>/reject` (POST, super-admin)
+## Execution Steps:
+Run: `python apply_supabase_sql.py`
 
-### File 5: `tests/test_api_endpoints.py`
-- Update test setup to set `email_verified=True` and `status='approved'` on test users
-- Update `test_auth_register_and_login` to include admin approval step
-
-## Followup Steps
-- Run `python -m pytest tests/test_api_endpoints.py`
-
+## Notes:
+- Requires DATABASE_URL environment variable to be set
+- Script handles SQL parsing including dollar-quoted strings
+- Uses multiple passes to handle foreign key dependencies

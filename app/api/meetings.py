@@ -20,7 +20,7 @@ def get_meetings():
 
     query = Meeting.query
 
-    if current_user.user_type != 'admin':
+    if current_user.role != 'admin':
         # Filter: Created by user OR User is a participant
         query = query.outerjoin(MeetingParticipant, Meeting.id == MeetingParticipant.meeting_id)\
             .filter(or_(
@@ -34,7 +34,7 @@ def get_meetings():
         creator = User.query.get(meeting.created_by) if meeting.created_by else None
         participants = MeetingParticipant.query.filter_by(meeting_id=meeting.id).all()
         result.append({
-            'id': meeting.id,
+            'id': str(meeting.id),
             'title': meeting.title,
             'description': meeting.description,
             'scheduled_at': meeting.scheduled_at.isoformat() if meeting.scheduled_at else None,
@@ -42,12 +42,12 @@ def get_meetings():
             'meeting_link': meeting.meeting_link,
             'status': meeting.status,
             'created_by': {
-                'id': creator.id,
+                'id': str(creator.id),
                 'name': creator.name,
                 'email': creator.email
             } if creator else None,
             'participants': [{
-                'id': u.id,
+                'id': str(u.id),
                 'name': u.name if u else 'Unknown',
                 'email': u.email if u else 'Unknown',
                 'joined_at': p.joined_at.isoformat() if p.joined_at else None,
@@ -57,7 +57,40 @@ def get_meetings():
         })
     return jsonify(result)
 
-@meetings_api.route('/<int:meeting_id>', methods=['GET'])
+@meetings_api.route('/next-class', methods=['GET'])
+@jwt_required()
+def get_next_class():
+    current_user_id = get_jwt_identity()
+    current_user = afg_db.session.get(User, current_user_id)
+
+    query = Meeting.query.filter(Meeting.scheduled_at >= datetime.utcnow())
+    query = query.outerjoin(MeetingParticipant, Meeting.id == MeetingParticipant.meeting_id)\
+        .filter(or_(
+            Meeting.created_by == current_user_id,
+            MeetingParticipant.user_id == current_user_id
+        )).distinct()
+
+    next_meeting = query.order_by(Meeting.scheduled_at.asc()).first()
+    if not next_meeting:
+        return jsonify({'message': 'No upcoming class found'}), 404
+
+    creator = afg_db.session.get(User, next_meeting.created_by) if next_meeting.created_by else None
+    return jsonify({
+        'id': str(next_meeting.id),
+        'title': next_meeting.title,
+        'description': next_meeting.description,
+        'scheduled_at': next_meeting.scheduled_at.isoformat() if next_meeting.scheduled_at else None,
+        'duration': next_meeting.duration,
+        'meeting_link': next_meeting.meeting_link,
+        'status': next_meeting.status,
+        'created_by': {
+            'id': str(creator.id),
+            'name': creator.name,
+            'email': creator.email
+        } if creator else None
+    })
+
+@meetings_api.route('/<uuid:meeting_id>', methods=['GET'])
 @jwt_required()
 def get_meeting(meeting_id):
     """Get a specific meeting"""
@@ -69,7 +102,7 @@ def get_meeting(meeting_id):
     participants = MeetingParticipant.query.filter_by(meeting_id=meeting.id).all()
 
     return jsonify({
-        'id': meeting.id,
+        'id': str(meeting.id),
         'title': meeting.title,
         'description': meeting.description,
         'scheduled_at': meeting.scheduled_at.isoformat() if meeting.scheduled_at else None,
@@ -77,12 +110,12 @@ def get_meeting(meeting_id):
         'meeting_link': meeting.meeting_link,
         'status': meeting.status,
         'created_by': {
-            'id': creator.id,
+            'id': str(creator.id),
             'name': creator.name,
             'email': creator.email
         } if creator else None,
         'participants': [{
-            'id': u.id,
+            'id': str(u.id),
             'name': u.name if u else 'Unknown',
             'email': u.email if u else 'Unknown',
             'joined_at': p.joined_at.isoformat() if p.joined_at else None,
@@ -102,7 +135,7 @@ def create_meeting():
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
 
-    if current_user.user_type not in ['mentor', 'super-admin']:
+    if current_user.role not in ['mentor', 'admin']:
         return jsonify({'message': 'Only mentors and admins can create meetings'}), 403
 
     # Auto-generate Jitsi Meet link if not provided
@@ -141,9 +174,9 @@ def create_meeting():
         )
     afg_db.session.commit()
 
-    return jsonify({'id': meeting.id}), 201
+    return jsonify({'id': str(meeting.id)}), 201
 
-@meetings_api.route('/<int:meeting_id>', methods=['PUT'])
+@meetings_api.route('/<uuid:meeting_id>', methods=['PUT'])
 @jwt_required()
 def update_meeting(meeting_id):
     """Update a meeting"""
@@ -153,7 +186,7 @@ def update_meeting(meeting_id):
 
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
-    if current_user.user_type != 'super-admin' and meeting.created_by != current_user_id:
+    if current_user.role != 'admin' and meeting.created_by != current_user_id:
         return jsonify({'message': 'Access denied'}), 403
 
     data = request.get_json()
@@ -197,7 +230,7 @@ def update_meeting(meeting_id):
 
     return jsonify({'message': 'Meeting updated successfully'})
 
-@meetings_api.route('/<int:meeting_id>/start', methods=['POST'])
+@meetings_api.route('/<uuid:meeting_id>/start', methods=['POST'])
 @jwt_required()
 def start_meeting(meeting_id):
     """Start a meeting (Mentor only)"""
@@ -209,7 +242,7 @@ def start_meeting(meeting_id):
     current_user = afg_db.session.get(User, current_user_id)
 
     # Only creator (mentor) or admin can start
-    if current_user.user_type != 'super-admin' and meeting.created_by != current_user_id:
+    if current_user.role != 'admin' and meeting.created_by != current_user_id:
         return jsonify({'message': 'Access denied'}), 403
 
     if not meeting.meeting_link:
@@ -233,7 +266,7 @@ def start_meeting(meeting_id):
         'meeting_link': meeting.meeting_link
     })
 
-@meetings_api.route('/<int:meeting_id>/join', methods=['POST'])
+@meetings_api.route('/<uuid:meeting_id>/join', methods=['POST'])
 @jwt_required()
 def join_meeting(meeting_id):
     """Record attendance and return meeting link"""
@@ -266,7 +299,7 @@ def join_meeting(meeting_id):
         'message': 'Attendance recorded'
     })
 
-@meetings_api.route('/<int:meeting_id>/attendance/<int:user_id>', methods=['PUT'])
+@meetings_api.route('/<uuid:meeting_id>/attendance/<uuid:user_id>', methods=['PUT'])
 @jwt_required()
 def update_attendance(meeting_id, user_id):
     """Manually update attendance status for a participant"""
@@ -278,7 +311,7 @@ def update_attendance(meeting_id, user_id):
     current_user = afg_db.session.get(User, current_user_id)
 
     # Only creator (mentor) or admin can update attendance manually
-    if current_user.user_type != 'super-admin' and meeting.created_by != current_user_id:
+    if current_user.role != 'admin' and meeting.created_by != current_user_id:
         return jsonify({'message': 'Access denied'}), 403
 
     participant = MeetingParticipant.query.filter_by(meeting_id=meeting_id, user_id=user_id).first()
@@ -298,11 +331,11 @@ def update_attendance(meeting_id, user_id):
 
     return jsonify({
         'message': 'Attendance updated successfully',
-        'user_id': user_id,
+        'user_id': str(user_id),
         'status': new_status
     })
 
-@meetings_api.route('/<int:meeting_id>', methods=['DELETE'])
+@meetings_api.route('/<uuid:meeting_id>', methods=['DELETE'])
 @jwt_required()
 def delete_meeting(meeting_id):
     """Delete a meeting"""
@@ -312,7 +345,7 @@ def delete_meeting(meeting_id):
 
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
-    if current_user.user_type != 'super-admin' and meeting.created_by != current_user_id:
+    if current_user.role != 'admin' and meeting.created_by != current_user_id:
         return jsonify({'message': 'Access denied'}), 403
 
     # Notify participants before deletion
@@ -332,7 +365,7 @@ def delete_meeting(meeting_id):
 
     return jsonify({'message': 'Meeting deleted successfully'})
 
-@meetings_api.route('/<int:meeting_id>/export', methods=['GET'])
+@meetings_api.route('/<uuid:meeting_id>/export', methods=['GET'])
 @jwt_required()
 def export_attendance(meeting_id):
     """Export attendance list as CSV or PDF"""
@@ -344,7 +377,7 @@ def export_attendance(meeting_id):
     current_user = afg_db.session.get(User, current_user_id)
 
     # Only creator (mentor) or admin can export
-    if current_user.user_type != 'super-admin' and meeting.created_by != current_user_id:
+    if current_user.role != 'admin' and meeting.created_by != current_user_id:
         return jsonify({'message': 'Access denied'}), 403
 
     export_format = request.args.get('format', 'csv').lower()
