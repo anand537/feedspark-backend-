@@ -17,9 +17,6 @@ Set environment variable:
 import os
 from flask import Blueprint, request, jsonify
 from groq import Groq
-# At the top of chatbot.py, after imports
-import os
-print("GROQ KEY LOADED:", os.environ.get("GROQ_API_KEY", "NOT FOUND")) 
 
 chatbot_bp = Blueprint("chatbot", __name__)
 
